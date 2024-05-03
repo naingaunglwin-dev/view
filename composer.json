@@ -2,6 +2,8 @@
   "name": "naingaunglwin-dev/view",
   "description": "Simple PHP View Library",
   "minimum-stability": "stable",
+  "version": "1.0.0",
+  "prefer-stable": true,
   "license": "MIT",
   "authors": [
     {

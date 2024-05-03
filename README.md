@@ -1,8 +1,10 @@
 <div align="center">
 
 # Simple PHP View Library
-![Status](https://img.shields.io/badge/status-development-blue)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+
+![Status](https://img.shields.io/badge/test-pass-green)
+![Status](https://img.shields.io/badge/coverage-100%25-green)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 </div>
 
@@ -22,14 +24,8 @@
 - Add this to `composer.json`
 ```php
 {
-  "repositories": [
-    {
-      "type": "vcs",
-      "url": "https://github.com/naingaunglwin-dev/view"
-    }
-  ],
   "require": {
-    "naingaunglwin-dev/view": "dev-master"
+    "naingaunglwin-dev/dotenv": "^1.0"
   }
 }
 ```
@@ -37,6 +33,7 @@
 ```bash
 composer install
 ```
+- Or just run `composer require naingaunglwin-dev/dotenv` in terminal.
 
 ## Usage
 - In your php file,
@@ -55,4 +52,48 @@ $view->render('index', ['status' => 'success']);
 // You can also render other file,
 // You can retrieve the view without rendering,
 $indexView = $view->render('index.html', [], true);
+
+// You can also render multi views
+$view->render(['index.html, test']);
+```
+### Section Usage
+- create `one.php` and `two.php`
+  
+- one.php
+```php
+<?php //one.php
+
+echo 'this is one.php';
+$this->displaySection('content');
+```
+
+- two.php
+```php
+<?php //two.php
+$this->extends('one'); // view file name that need to extend
+
+$this->section('content'); // Section start with `content` name
+
+echo '<br>This is section content from two.php';
+
+$this->endSection('content'); // End the section `content`
+```
+
+- index.php
+```php
+<?php
+
+require_once "vendor/autoload.php";
+
+use NAL\View\View;
+
+$view = new View(__DIR__ . '/views');
+
+$view->render('two');
+```
+
+- Output will be
+```txt
+this is one.php
+This is section content from two.php
 ```
