@@ -25,7 +25,7 @@
 ```php
 {
   "require": {
-    "naingaunglwin-dev/dotenv": "^1.0"
+    "naingaunglwin-dev/view": "^1.0"
   }
 }
 ```
@@ -33,7 +33,7 @@
 ```bash
 composer install
 ```
-- Or just run `composer require naingaunglwin-dev/dotenv` in terminal.
+- Or just run `composer require naingaunglwin-dev/view` in terminal.
 
 ## Usage
 - In your php file,
