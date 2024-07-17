@@ -56,16 +56,37 @@ class View implements ViewInterface
      */
     private bool $isSection = false;
 
-    public function __construct(string $path)
+    /**
+     * View constructor
+     *
+     * @param string|null $path Path to the view files
+     */
+    public function __construct(string $path = null)
     {
-        $path = trim($path ?? dirname(__DIR__) . '../../');
+        $this->path(trim($path ?? dirname(__DIR__) . '../../'));
+    }
 
-        // Check if $path is not empty and end with '/' or not
-        if ($path !== '' && !empty($path) && !str_ends_with($path, DIRECTORY_SEPARATOR)) {
-            $path = $path . DIRECTORY_SEPARATOR;
+    /**
+     * Set the view path or get the current view path.
+     *
+     * If a path is provided, it sets the view path, ensuring it ends with a directory separator.
+     * If no path is provided, it returns the current view path.
+     *
+     * @param string|null $path Optional. The path to the view files.
+     * @return string The current view path.
+     */
+    public function path(string $path = null): string
+    {
+        if (!empty($path)) {
+            // Check if $path is not empty and end with '/' or not
+            if ($path !== '' && !str_ends_with($path, DIRECTORY_SEPARATOR)) {
+                $path = $path . DIRECTORY_SEPARATOR;
+            }
+
+            $this->path = $path;
         }
 
-        $this->path = $path;
+        return $this->path;
     }
 
     /**
@@ -147,7 +168,6 @@ class View implements ViewInterface
      */
     public function render(string|array $view, array $data = null, bool $return = false): ?string
     {
-        //var_dump($views);
         $this->setView($view);
 
         // Prepare views to render
