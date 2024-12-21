@@ -1,326 +1,283 @@
 <?php
 
+/**
+ * @package NAL\View
+ * @copyright NaingAungLwin
+ * @license MIT
+ * @link https://github.com/naingaunglwin-dev/view
+ */
+
 namespace NAL\View;
 
-use BadMethodCallException;
 use NAL\View\Exception\PathNotFound;
 
-class View implements ViewInterface
+class View
 {
     /**
-     * The base path for views.
+     * Directory separator for parsing view paths.
      *
      * @var string
      */
-    private string $path;
+    private string $directorySeparator = ">";
 
     /**
-     * An array containing the paths to individual views.
-     *
-     * @var array
-     */
-    private array $views = [];
-
-    /**
-     * An array containing temporary views used during rendering.
-     *
-     * @var array
-     */
-    private array $temp = [];
-
-    /**
-     * An associative array containing sections and their content.
-     *
-     * @var array
-     */
-    private static array $sections = [];
-
-    /**
-     * The path to the views being extended.
+     * The parent template to extend.
      *
      * @var string
      */
-    private static string $extend = '';
+    private string $extend = '';
 
     /**
-     * An array containing the views to be rendered.
+     * Sections content.
      *
      * @var array
      */
-    private array $render = [];
+    private array $sections = [];
 
     /**
-     * A flag indicating whether a section is being rendered.
+     * Stack of active sections.
      *
-     * @var bool
+     * @var array
      */
-    private bool $isSection = false;
+    private array $sectionStacks = [];
 
     /**
-     * View constructor
+     * Constructor for the View class.
      *
-     * @param string|null $path Path to the view files
+     * @param string|null $path The base path for view files.
+     * @param string|object|null $engine Custom view rendering engine.
      */
-    public function __construct(string $path = null)
+    public function __construct(
+        private ?string $path = null,
+        private null|string|object $engine = null
+    )
     {
-        $this->path(trim($path ?? dirname(__DIR__) . '../../'));
+        $this->initPath();
+
+        $this->initEngine();
     }
 
     /**
-     * Set the view path or get the current view path.
-     *
-     * If a path is provided, it sets the view path, ensuring it ends with a directory separator.
-     * If no path is provided, it returns the current view path.
-     *
-     * @param string|null $path Optional. The path to the view files.
-     * @return string The current view path.
-     */
-    public function path(string $path = null): string
-    {
-        if (!empty($path)) {
-            // Check if $path is not empty and end with '/' or not
-            if ($path !== '' && !str_ends_with($path, DIRECTORY_SEPARATOR)) {
-                $path = $path . DIRECTORY_SEPARATOR;
-            }
-
-            $this->path = $path;
-        }
-
-        return $this->path;
-    }
-
-    /**
-     * Sets the views or views to be rendered.
-     *
-     * @param string|array $view The path to a single views or an array of views paths.
-     *
-     * @throws BadMethodCallException
-     */
-    private function setView(string|array $view): void
-    {
-        $files = [];
-
-        if (is_string($view)) {
-            $files[] = $view;
-        } else {
-            $files = $view;
-        }
-
-        $filtered_views = [];
-
-        foreach ($files as $file) {
-            $file = trim($file);
-
-            if (str_starts_with($file, '*')) {
-                $file = substr($file, 1);
-            }
-
-            $file = str_replace('*', '/', $file);
-
-            $file = str_replace($this->path, '', $file);
-
-            $file = $this->verifyExtension($this->path . $file);
-
-            if (!$this->isExists($file)) {
-                throw new PathNotFound($file, 404);
-            }
-
-            $filtered_views[] = $file;
-        }
-
-        $this->views = $filtered_views;
-    }
-
-    /**
-     * Renders and captures the output of the specified views.
-     *
-     * @param array $views The path to an array of views paths.
-     * @param array|null $data  An associative array of data to be passed to the views(s).
-     *
-     * @return string|bool The rendered views(s) output, or false on failure.
-     */
-    private function getViews(array $views, ?array $data): bool|string
-    {
-        // Save views in local properties
-        // to prevent variable name conflict from $data when extract
-        $this->temp = $views;
-
-        if ($data !== null) {
-            extract($data, EXTR_SKIP);
-        }
-
-        ob_start();
-
-        foreach ($this->temp as $view) {
-            include $view;
-        }
-
-        $content = ob_get_clean();
-
-        // Clear the temp views
-        $this->temp = [];
-
-        return $content;
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function render(string|array $view, array $data = null, bool $return = false): ?string
-    {
-        $this->setView($view);
-
-        // Prepare views to render
-        $this->prepare();
-
-        // Get included views
-        $result = $this->getViews($this->render, $data);
-
-        if ($this->isSection && !empty(self::$sections)) {
-            // Render the sections
-            $this->isSection = false;
-
-            // Re-prepare the views in case sections are extended
-            $this->prepare();
-
-            // Get included views
-            $result = $this->getViews($this->render, $data);
-        }
-
-        if ($return === false) {
-            // echo the output if return false
-            echo $result;
-        }
-
-        return $result;
-    }
-
-    /**
-     * Prepares the views for rendering.
+     * Initializes the view path, ensuring it exists and is properly formatted.
      *
      * @return void
      */
-    private function prepare(): void
+    private function initPath(): void
     {
-        $files = [];
+        if (empty($this->path)) $this->path = dirname(__DIR__, 3);
 
-        foreach ($this->views as $view) {
-            $content = file_get_contents($view);
-
-            if ($content !== false && preg_match('/\$this->extends\(\'(.*?)\'\);/s', $content, $matches)) {
-                $files[] = $this->verifyExtension($this->path . $matches[1]);
-            }
-            $files[] = $view;
+        if (!is_dir($this->path)) {
+            mkdir($this->path, 0777, true);
         }
 
-        $this->render = $files;
+        $this->path = $this->parseDir($this->path);
 
-        $this->render = array_unique($this->render);
+        if (!str_ends_with($this->path, DIRECTORY_SEPARATOR)) {
+            $this->path .= DIRECTORY_SEPARATOR;
+        }
     }
 
     /**
-     * @inheritDoc
+     * Initializes the custom rendering engine if provided.
+     *
+     * @return void
+     * @throws \InvalidArgumentException If the engine class does not exist.
      */
-    public function section(string $name): void
+    private function initEngine(): void
     {
-        if (empty(self::$extend)) {
-            throw new BadMethodCallException("No extend method defined");
+        if ($this->engine && is_string($this->engine)) {
+            if (!class_exists($this->engine)) {
+                throw new \InvalidArgumentException("Undefined View engine [{$this->engine}]");
+            }
+
+            $this->engine = new $this->engine();
+        }
+    }
+
+    /**
+     * Renders a view file or an array of views.
+     *
+     * @param string|array $view The view file(s) to render.
+     * @param array $data The data to pass to the view.
+     * @param bool $output Whether to output the rendered view directly.
+     * @return string|null The rendered content or null if output is true.
+     * @throws PathNotFound If a view file is not found.
+     */
+    public function render(string|array $view, array $data = [], bool $output = true): ?string
+    {
+        $parsed = $this->parse($view);
+
+        if ($this->engine && method_exists($this->engine, 'render')) {
+            return $this->engine->render($this->parse($view, false), $data);
         }
 
-        $this->isSection = true;
+        $render = $this->renderView($parsed, $data);
 
-        self::$sections[$name] = [
-            'content' => '',
-            'extend'  => self::$extend,
-        ];
+        if ($this->extend) {
+            $parentView = new static($this->path, $this->engine);
+            $parentView->sections = $this->sections;
+            $parent = $parentView->render($this->extend, $data, false);
+
+            $render = count($parsed) > 1 ? $render .  $parent : $parent;
+        }
+
+        if ($output) echo $render;
+
+        return $render;
+    }
+
+    /**
+     * Renders the view file(s) with the provided data.
+     *
+     * @param array $views List of parsed view paths.
+     * @param array $data Data to pass to the view.
+     * @return string Rendered content.
+     */
+    private function renderView(array $views, array $data): string
+    {
+        ob_start();
+
+        if (!empty($data)) {
+            extract($data, EXTR_SKIP);
+        }
+
+        foreach ($views as $view) {
+            include $view;
+        }
+
+        return ob_get_clean() ?: '';
+    }
+
+    /**
+     * Parses and validates view paths.
+     *
+     * @param string|array $views The view path(s).
+     * @param bool $appendParentDir Whether to append the base directory to the view paths.
+     * @return array List of valid view paths.
+     * @throws PathNotFound If a view file does not exist.
+     */
+    private function parse(string|array $views, bool $appendParentDir = true): array
+    {
+        $parsed = [];
+
+        if (is_string($views)) {
+            $views = [$views];
+        }
+
+        foreach ($views as $view) {
+            $view = $this->sanitizeViewPath($view);
+
+            if ($appendParentDir) {
+                if (!file_exists($view)) {
+                    throw new PathNotFound("{$view} does not exist");
+                }
+            }
+
+            $parsed[] = $view;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * Sanitizes and validates a single view path.
+     *
+     * @param string $view The raw view path.
+     * @return string The sanitized view path.
+     * @throws PathNotFound If the path is invalid.
+     */
+    private function sanitizeViewPath(string $view): string
+    {
+        $view = str_replace("\0", '', $view);
+
+        $view = preg_replace(
+            "/\s+/", "", trim($view)
+        );
+
+        if (!pathinfo($view, PATHINFO_EXTENSION)) {
+            $view .= '.php';
+        }
+
+        $view = realpath($this->path . DIRECTORY_SEPARATOR . $this->parseDir($view));
+
+        if (!str_starts_with($view, $this->path)) {
+            throw new PathNotFound("Invalid view path: {$view}");
+        }
+
+        return $view;
+    }
+
+    /**
+     * Normalizes directory separators in a path.
+     *
+     * @param string $path The raw path.
+     * @return string The normalized path.
+     */
+    private function parseDir(string $path): string
+    {
+        return str_replace(
+            [
+                $this->directorySeparator,
+                "/", "\\"
+            ],
+            DIRECTORY_SEPARATOR, $path
+        );
+    }
+
+    /**
+     * Sets the parent template to extend.
+     *
+     * @param string $template The parent template path.
+     * @return void
+     */
+    public function extend(string $template): void
+    {
+        $this->extend = $this->parseDir($template);
+    }
+
+    /**
+     * Starts a new content section.
+     *
+     * @param string $section The section name.
+     * @return void
+     */
+    public function section(string $section): void
+    {
+        $this->sectionStacks[] = $section;
+
+        if (!isset($this->sections[$section])) {
+            $this->sections[$section] = '';
+        }
 
         ob_start();
     }
 
     /**
-     * @inheritDoc
+     * Ends the current content section.
+     *
+     * @return void
+     * @throws \BadMethodCallException If there is no active section to end.
      */
-    public function endSection(string $name): void
+    public function end(): void
     {
-        if (!isset(self::$sections[$name])) {
-            throw new BadMethodCallException('Section "' . $name . '" does not exist');
+        if (empty($this->sectionStacks)) {
+            throw new \BadMethodCallException("No active section to end");
         }
 
+        $section = array_pop($this->sectionStacks);
         $content = ob_get_clean();
 
-        self::$sections[$name]['content'] = $content;
+        $this->sections[$section] .= $content;
     }
 
     /**
-     * @inheritDoc
-     */
-    public function extends(string $file): void
-    {
-        $file = trim($file);
-        $file = str_replace('*', '/', $file);
-
-        $file = $this->verifyExtension($this->path . $file);
-
-        if (!$this->isExists($file)) {
-            throw new PathNotFound($file, 404);
-        }
-
-        self::$extend = $file;
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function displaySection(string $name): ?string
-    {
-        if (isset(self::$sections[$name])) {
-            echo self::$sections[$name]['content'];
-            return '';
-        }
-
-        return null;
-    }
-
-    /**
-     * Verifies whether a views file exists.
+     * Outputs the content of a section.
      *
-     * @param string $view The path to the views file.
-     *
-     * @return bool True if the views file exists, false otherwise.
+     * @param string $section The section name.
+     * @return void
      */
-    private function isExists(string $view): bool
+    public function yield(string $section): void
     {
-        return file_exists($view);
-    }
-
-    /**
-     * Verifies and adds the appropriate file extension to a views file.
-     *
-     * @param string $file The path to the views file.
-     *
-     * @return string The path to the views file with the appropriate extension.
-     */
-    private function verifyExtension(string $file): string
-    {
-        $extension = pathinfo($file, PATHINFO_EXTENSION);
-
-        if (empty($extension)) {
-            $file = $file . '.php';
-        }
-
-        return $file;
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function clean(bool $outputOnly = true): void
-    {
-        self::$extend   = '';
-        self::$sections = [];
-
-        if (!$outputOnly) {
-            $this->views    = [];
-        }
+        echo $this->sections[$section] ?? '';
     }
 }
