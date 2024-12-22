@@ -16,7 +16,11 @@
   },
   "autoload": {
     "psr-4": {
-      "NAL\\View\\": "src/"
+      "NAL\\View\\": "src/",
+      "NALViewTest\\": "tests/"
     }
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.5"
   }
 }
