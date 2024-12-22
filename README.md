@@ -56,6 +56,9 @@ $indexView = $view->render('index.html', [], true);
 // You can also render multi views
 $view->render(['index.html, test']);
 ```
+
+- If you don't define your view path, View class will automatically set the view path to your project root level
+
 ### Section Usage
 - create `one.php` and `two.php`
   
@@ -64,7 +67,7 @@ $view->render(['index.html, test']);
 <?php //one.php
 
 echo 'this is one.php';
-$this->displaySection('content');
+$this->yield('content');
 ```
 
 - two.php
@@ -76,7 +79,7 @@ $this->section('content'); // Section start with `content` name
 
 echo '<br>This is section content from two.php';
 
-$this->endSection('content'); // End the section `content`
+$this->end('content'); // End the section `content`
 ```
 
 - index.php
@@ -96,4 +99,13 @@ $view->render('two');
 ```txt
 this is one.php
 This is section content from two.php
+```
+
+### Custom Renderer Engine
+```php
+<?php
+$view = new \NAL\View\View('path', MyCustomEngine::class);
+
+$view->render('template'); // MyCustomEngine`s render method will be used in this process if exists
+
 ```
