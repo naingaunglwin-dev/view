@@ -44,12 +44,14 @@ class View
     /**
      * Constructor for the View class.
      *
-     * @param string|null $path The base path for view files.
-     * @param string|object|null $engine Custom view rendering engine.
+     * @param string|null $path The base path for view files. If not provided, the default directory is used.
+     * @param string|object|null $engine Custom view rendering engine. If not provided, the default rendering engine is used.
+     * @param bool $appendDirInEngine Whether to append the base directory to view paths when passing them to the custom engine. Default is `false`.
      */
     public function __construct(
         private ?string $path = null,
-        private null|string|object $engine = null
+        private null|string|object $engine = null,
+        private readonly bool $appendDirInEngine = false
     )
     {
         $this->initPath();
@@ -108,7 +110,7 @@ class View
         $parsed = $this->parse($view);
 
         if ($this->engine && method_exists($this->engine, 'render')) {
-            return $this->engine->render($this->parse($view, false), $data);
+            return $this->engine->render($this->parse($view, $this->appendDirInEngine), $data);
         }
 
         $render = $this->renderView($parsed, $data);
@@ -168,6 +170,8 @@ class View
             $view = $this->sanitizeViewPath($view);
 
             if ($appendParentDir) {
+                $view = realpath($this->path . $view);
+
                 if (!file_exists($view)) {
                     throw new PathNotFound("{$view} does not exist");
                 }
@@ -184,7 +188,6 @@ class View
      *
      * @param string $view The raw view path.
      * @return string The sanitized view path.
-     * @throws PathNotFound If the path is invalid.
      */
     private function sanitizeViewPath(string $view): string
     {
@@ -198,13 +201,7 @@ class View
             $view .= '.php';
         }
 
-        $view = realpath($this->path . DIRECTORY_SEPARATOR . $this->parseDir($view));
-
-        if (!str_starts_with($view, $this->path)) {
-            throw new PathNotFound("Invalid view path: {$view}");
-        }
-
-        return $view;
+        return $this->parseDir($view);
     }
 
     /**
