@@ -106,6 +106,6 @@ This is section content from two.php
 <?php
 $view = new \NAL\View\View('path', MyCustomEngine::class);
 
-$view->render('template'); // MyCustomEngine`s render method will be use in this process if exists
+$view->render('template'); // MyCustomEngine`s render method will be used in this process if exists
 
 ```
